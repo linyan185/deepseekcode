@@ -99,10 +99,18 @@ const TEAMMATE_ENV_VARS = [
   'CLAUDE_CODE_USE_BEDROCK',
   'CLAUDE_CODE_USE_VERTEX',
   'CLAUDE_CODE_USE_FOUNDRY',
+  'CLAUDE_CODE_USE_DEEPSEEK',
   // Custom API endpoint
   'ANTHROPIC_BASE_URL',
+  'DEEPSEEK_BASE_URL',
+  'DEEPSEEK_API_KEY',
+  'DEEPSEEK_MODEL',
+  'DEEPSEEK_ENABLE_THINKING',
+  'CLAUDE_CODE_DISABLE_THINKING',
+  'CLAUDE_CODE_EFFORT_LEVEL',
   // Config directory override
   'CLAUDE_CONFIG_DIR',
+  'DEEPSEEK_CODE_CONFIG_DIR',
   // CCR marker — teammates need this for CCR-aware code paths. Auth finds
   // its own way via /home/claude/.claude/remote/.oauth_token regardless;
   // the FD env var wouldn't help (pipe FDs don't cross tmux).

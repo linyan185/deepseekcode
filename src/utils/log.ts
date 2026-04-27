@@ -166,10 +166,14 @@ export function logError(error: unknown): void {
   try {
     // Check if error reporting should be disabled
     if (
-      // Cloud providers (Bedrock/Vertex/Foundry) always disable features
+      // Third-party providers (Bedrock/Vertex/Foundry/DeepSeek) always disable features
       isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK) ||
       isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX) ||
       isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY) ||
+      isEnvTruthy(process.env.CLAUDE_CODE_USE_DEEPSEEK) ||
+      !!process.env.DEEPSEEK_API_KEY ||
+      !!process.env.DEEPSEEK_BASE_URL ||
+      process.env.ANTHROPIC_BASE_URL?.includes('deepseek.com') ||
       process.env.DISABLE_ERROR_REPORTING ||
       isEssentialTrafficOnly()
     ) {

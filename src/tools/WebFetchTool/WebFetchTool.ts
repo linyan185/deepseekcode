@@ -24,7 +24,12 @@ import {
 const inputSchema = lazySchema(() =>
   z.strictObject({
     url: z.string().url().describe('The URL to fetch content from'),
-    prompt: z.string().describe('The prompt to run on the fetched content'),
+    prompt: z
+      .string()
+      .default(
+        'Summarize what this web page is for, focusing on the project, product, documentation, or article content.',
+      )
+      .describe('The prompt to run on the fetched content'),
   }),
 )
 type InputSchema = ReturnType<typeof inputSchema>

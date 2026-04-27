@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { logForDebugging } from '../../utils/debug.js'
 import { errorMessage } from '../../utils/errors.js'
+import { getAPIProvider } from '../../utils/model/providers.js'
 
 type RegistryServer = {
   server: {
@@ -31,7 +32,10 @@ function normalizeUrl(url: string): string | undefined {
  * Populates officialUrls for isOfficialMcpUrl lookups.
  */
 export async function prefetchOfficialMcpUrls(): Promise<void> {
-  if (process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC) {
+  if (
+    process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC ||
+    getAPIProvider() === 'deepseek'
+  ) {
     return
   }
 

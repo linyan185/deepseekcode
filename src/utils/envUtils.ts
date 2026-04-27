@@ -2,15 +2,54 @@ import memoize from 'lodash-es/memoize.js'
 import { homedir } from 'os'
 import { join } from 'path'
 
-// Memoized: 150+ callers, many on hot paths. Keyed off CLAUDE_CONFIG_DIR so
-// tests that change the env var get a fresh value without explicit cache.clear.
+function isEnvTruthyValue(envVar: string | boolean | undefined): boolean {
+  if (!envVar) return false
+  if (typeof envVar === 'boolean') return envVar
+  const normalizedValue = envVar.toLowerCase().trim()
+  return ['1', 'true', 'yes', 'on'].includes(normalizedValue)
+}
+
+function isDeepSeekBaseUrl(value: string | undefined): boolean {
+  if (!value) return false
+  try {
+    return new URL(value).hostname.toLowerCase().endsWith('deepseek.com')
+  } catch {
+    return false
+  }
+}
+
+export function shouldUseDeepSeekConfigDir(): boolean {
+  return (
+    isEnvTruthyValue(process.env.CLAUDE_CODE_USE_DEEPSEEK) ||
+    !!process.env.DEEPSEEK_API_KEY ||
+    !!process.env.DEEPSEEK_BASE_URL ||
+    isDeepSeekBaseUrl(process.env.ANTHROPIC_BASE_URL)
+  )
+}
+
+function getDefaultConfigHomeDir(): string {
+  return join(homedir(), shouldUseDeepSeekConfigDir() ? '.deepseek-code' : '.claude')
+}
+
+// Memoized: 150+ callers, many on hot paths. Keyed off config/provider env so
+// tests that change env vars get a fresh value without explicit cache.clear.
 export const getClaudeConfigHomeDir = memoize(
   (): string => {
     return (
-      process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude')
+      process.env.DEEPSEEK_CODE_CONFIG_DIR ??
+      process.env.CLAUDE_CONFIG_DIR ??
+      getDefaultConfigHomeDir()
     ).normalize('NFC')
   },
-  () => process.env.CLAUDE_CONFIG_DIR,
+  () =>
+    [
+      process.env.DEEPSEEK_CODE_CONFIG_DIR,
+      process.env.CLAUDE_CONFIG_DIR,
+      process.env.CLAUDE_CODE_USE_DEEPSEEK,
+      process.env.DEEPSEEK_API_KEY ? 'deepseek-key-present' : '',
+      process.env.DEEPSEEK_BASE_URL,
+      process.env.ANTHROPIC_BASE_URL,
+    ].join('\0'),
 )
 
 export function getTeamsDir(): string {
@@ -30,10 +69,7 @@ export function hasNodeOption(flag: string): boolean {
 }
 
 export function isEnvTruthy(envVar: string | boolean | undefined): boolean {
-  if (!envVar) return false
-  if (typeof envVar === 'boolean') return envVar
-  const normalizedValue = envVar.toLowerCase().trim()
-  return ['1', 'true', 'yes', 'on'].includes(normalizedValue)
+  return isEnvTruthyValue(envVar)
 }
 
 export function isEnvDefinedFalsy(

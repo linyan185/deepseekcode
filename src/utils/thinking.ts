@@ -5,6 +5,7 @@ import { getFeatureValue_CACHED_MAY_BE_STALE } from '../services/analytics/growt
 import { getCanonicalName } from './model/model.js'
 import { get3PModelCapabilityOverride } from './model/modelSupportOverrides.js'
 import { getAPIProvider } from './model/providers.js'
+import { isEnvTruthy } from './envUtils.js'
 import { getSettingsWithErrors } from './settings/settings.js'
 
 export type ThinkingConfig =
@@ -88,6 +89,10 @@ export function getRainbowColor(
 // TODO(inigo): add support for probing unknown models via API error detection
 // Provider-aware thinking support detection (aligns with modelSupportsISP in betas.ts)
 export function modelSupportsThinking(model: string): boolean {
+  if (getAPIProvider() === 'deepseek') {
+    return false
+  }
+
   const supported3P = get3PModelCapabilityOverride(model, 'thinking')
   if (supported3P !== undefined) {
     return supported3P
@@ -144,6 +149,10 @@ export function modelSupportsAdaptiveThinking(model: string): boolean {
 }
 
 export function shouldEnableThinkingByDefault(): boolean {
+  if (getAPIProvider() === 'deepseek') {
+    return false
+  }
+
   if (process.env.MAX_THINKING_TOKENS) {
     return parseInt(process.env.MAX_THINKING_TOKENS, 10) > 0
   }

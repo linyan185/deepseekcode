@@ -4,6 +4,7 @@ import { getGlobalConfig } from './config.js'
 import { isEnvTruthy } from './envUtils.js'
 import { getCanonicalName } from './model/model.js'
 import { getModelCapability } from './model/modelCapabilities.js'
+import { getAPIProvider } from './model/providers.js'
 
 // Model context window size (200k tokens for all models right now)
 export const MODEL_CONTEXT_WINDOW_DEFAULT = 200_000
@@ -39,10 +40,20 @@ export function has1mContext(model: string): boolean {
   return /\[1m\]/i.test(model)
 }
 
+function isDeepSeekV4ProModel(model: string): boolean {
+  return (
+    getAPIProvider() === 'deepseek' &&
+    model.toLowerCase().includes('deepseek-v4-pro')
+  )
+}
+
 // @[MODEL LAUNCH]: Update this pattern if the new model supports 1M context
 export function modelSupports1M(model: string): boolean {
   if (is1mContextDisabled()) {
     return false
+  }
+  if (isDeepSeekV4ProModel(model)) {
+    return true
   }
   const canonical = getCanonicalName(model)
   return canonical.includes('claude-sonnet-4') || canonical.includes('opus-4-6')
@@ -68,6 +79,10 @@ export function getContextWindowForModel(
 
   // [1m] suffix — explicit client-side opt-in, respected over all detection
   if (has1mContext(model)) {
+    return 1_000_000
+  }
+
+  if (!is1mContextDisabled() && isDeepSeekV4ProModel(model)) {
     return 1_000_000
   }
 

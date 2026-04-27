@@ -43,11 +43,13 @@ import { useAppState } from '../../state/AppState.js';
 import { getEffortSuffix } from '../../utils/effort.js';
 import { useMainLoopModel } from '../../hooks/useMainLoopModel.js';
 import { renderModelSetting } from '../../utils/model/model.js';
+import { getAPIProvider } from '../../utils/model/providers.js';
 const LEFT_PANEL_MAX_WIDTH = 50;
 export function LogoV2() {
   const $ = _c(94);
   const activities = getRecentActivitySync();
-  const username = getGlobalConfig().oauthAccount?.displayName ?? "";
+  const isDeepSeekMode = getAPIProvider() === 'deepseek';
+  const username = isDeepSeekMode ? "" : getGlobalConfig().oauthAccount?.displayName ?? "";
   const {
     columns
   } = useTerminalSize();
@@ -248,8 +250,8 @@ export function LogoV2() {
   }
   const layoutMode = getLayoutMode(columns);
   const userTheme = resolveThemeSetting(getGlobalConfig().theme);
-  const borderTitle = ` ${color("claude", userTheme)("Claude Code")} ${color("inactive", userTheme)(`v${version}`)} `;
-  const compactBorderTitle = color("claude", userTheme)(" Claude Code ");
+  const borderTitle = ` ${color("claude", userTheme)("DeepSeek Code")} ${color("inactive", userTheme)(`v${version}`)} `;
+  const compactBorderTitle = color("claude", userTheme)(" DeepSeek Code ");
   if (layoutMode === "compact") {
     let welcomeMessage = formatWelcomeMessage(username);
     if (stringWidth(welcomeMessage) > columns - 4) {
@@ -329,7 +331,7 @@ export function LogoV2() {
     return <><OffscreenFreeze><Box flexDirection="column" borderStyle="round" borderColor="claude" borderText={t11} paddingX={1} paddingY={1} alignItems="center" width={columns}><Text bold={true}>{welcomeMessage}</Text>{t12}{t13}<Text dimColor={true}>{billingType}</Text><Text dimColor={true}>{agentName ? `@${agentName} · ${truncatedCwd}` : truncatedCwd}</Text></Box></OffscreenFreeze>{t14}{t15}{t16}{t17}{t18}{t19}</>;
   }
   const welcomeMessage_0 = formatWelcomeMessage(username);
-  const modelLine = !process.env.IS_DEMO && config.oauthAccount?.organizationName ? `${modelDisplayName} · ${billingType} · ${config.oauthAccount.organizationName}` : `${modelDisplayName} · ${billingType}`;
+  const modelLine = !isDeepSeekMode && !process.env.IS_DEMO && config.oauthAccount?.organizationName ? `${modelDisplayName} · ${billingType} · ${config.oauthAccount.organizationName}` : `${modelDisplayName} · ${billingType}`;
   const cwdAvailableWidth_0 = agentName ? LEFT_PANEL_MAX_WIDTH - 1 - stringWidth(agentName) - 3 : LEFT_PANEL_MAX_WIDTH;
   const truncatedCwd_0 = truncatePath(cwd, Math.max(cwdAvailableWidth_0, 10));
   const cwdLine = agentName ? `@${agentName} · ${truncatedCwd_0}` : truncatedCwd_0;

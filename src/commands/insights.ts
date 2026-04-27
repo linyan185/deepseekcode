@@ -1743,7 +1743,7 @@ Use this 4-part structure:
 
 2. **What's hindering you** - Split into (a) Claude's fault (misunderstandings, wrong approaches, bugs) and (b) user-side friction (not providing enough context, environment issues -- ideally more general than just one project). Be honest but constructive.
 
-3. **Quick wins to try** - Specific Claude Code features they could try from the examples below, or a workflow technique if you think it's really compelling. (Avoid stuff like "Ask Claude to confirm before taking actions" or "Type out more context up front" which are less compelling.)
+3. **Quick wins to try** - Specific DeepSeek Code features they could try from the examples below, or a workflow technique if you think it's really compelling. (Avoid stuff like "Ask DeepSeek Code to confirm before taking actions" or "Type out more context up front" which are less compelling.)
 
 4. **Ambitious workflows for better models** - As we move to much more capable models over the next 3-6 months, what should they prepare for? What workflows that seem impossible now will become possible? Draw from the appropriate section below.
 

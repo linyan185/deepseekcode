@@ -53,6 +53,8 @@ import { logError } from '../../utils/log.js'
 import { isAutoMemFile } from '../../utils/memoryFileDetection.js'
 import { createUserMessage } from '../../utils/messages.js'
 import { getCanonicalName, getMainLoopModel } from '../../utils/model/model.js'
+import { getAPIProvider } from '../../utils/model/providers.js'
+import { extractDocxText, extractPDFText } from '../../utils/documentText.js'
 import {
   mapNotebookCellsToToolResult,
   readNotebook,
@@ -336,7 +338,10 @@ export type Output = z.infer<OutputSchema>
 
 export const FileReadTool = buildTool({
   name: FILE_READ_TOOL_NAME,
-  searchHint: 'read files, images, PDFs, notebooks',
+  searchHint:
+    getAPIProvider() === 'deepseek'
+      ? 'read text/code files, notebooks, docx files, and text-extractable PDFs; native image/PDF vision is unsupported'
+      : 'read files, images, PDFs, notebooks',
   // Output is bounded by maxTokens (validateContentTokens). Persisting to a
   // file the model reads back with Read is circular — never persist.
   maxResultSizeChars: Infinity,
@@ -472,6 +477,7 @@ export const FileReadTool = buildTool({
     if (
       hasBinaryExtension(fullFilePath) &&
       !isPDFExtension(ext) &&
+      ext !== '.docx' &&
       !IMAGE_EXTENSIONS.has(ext.slice(1))
     ) {
       return {
@@ -798,6 +804,73 @@ function createImageResponse(
   }
 }
 
+async function createExtractedTextResponse(
+  file_path: string,
+  fullFilePath: string,
+  resolvedFilePath: string,
+  content: string,
+  ext: string,
+  offset: number,
+  limit: number | undefined,
+  maxSizeBytes: number,
+  maxTokens: number,
+  readFileState: ToolUseContext['readFileState'],
+  context: ToolUseContext,
+): Promise<{
+  data: Extract<Output, { type: 'text' }>
+}> {
+  const contentBytes = Buffer.byteLength(content, 'utf8')
+  if (limit === undefined && contentBytes > maxSizeBytes) {
+    throw new Error(
+      `Extracted text content (${formatFileSize(contentBytes)}) exceeds maximum allowed size (${formatFileSize(maxSizeBytes)}). ` +
+        'Use offset and limit to read a smaller range.',
+    )
+  }
+
+  const lines = content.split(/\r?\n/)
+  const startIndex = offset === 0 ? 0 : offset - 1
+  const selectedLines =
+    limit === undefined
+      ? lines.slice(startIndex)
+      : lines.slice(startIndex, startIndex + limit)
+  const selectedContent = selectedLines.join('\n')
+
+  await validateContentTokens(selectedContent, ext, maxTokens)
+
+  const stats = await getFsImplementation().stat(resolvedFilePath)
+  readFileState.set(fullFilePath, {
+    content: selectedContent,
+    timestamp: Math.floor(stats.mtimeMs),
+    offset,
+    limit,
+  })
+  context.nestedMemoryAttachmentTriggers?.add(fullFilePath)
+
+  for (const listener of fileReadListeners.slice()) {
+    listener(resolvedFilePath, selectedContent)
+  }
+
+  const data = {
+    type: 'text' as const,
+    file: {
+      filePath: file_path,
+      content: selectedContent,
+      numLines: selectedLines.length,
+      startLine: offset,
+      totalLines: lines.length,
+    },
+  }
+
+  logFileOperation({
+    operation: 'read',
+    tool: 'FileReadTool',
+    filePath: fullFilePath,
+    content: selectedContent,
+  })
+
+  return { data }
+}
+
 /**
  * Inner implementation of call, separated to allow ENOENT handling in the outer call.
  */
@@ -862,8 +935,32 @@ async function callInner(
     return { data }
   }
 
+  // --- Word document text extraction ---
+  if (ext === 'docx') {
+    const extracted = await extractDocxText(resolvedFilePath)
+    return createExtractedTextResponse(
+      file_path,
+      fullFilePath,
+      resolvedFilePath,
+      extracted.content,
+      extracted.source,
+      offset,
+      limit,
+      maxSizeBytes,
+      maxTokens,
+      readFileState,
+      context,
+    )
+  }
+
   // --- Image (single read, no double-read) ---
   if (IMAGE_EXTENSIONS.has(ext)) {
+    if (getAPIProvider() === 'deepseek') {
+      throw new Error(
+        'DeepSeek Code cannot natively read image or screenshot contents through the configured DeepSeek API. Use OCR/text extraction or describe the image contents in text.',
+      )
+    }
+
     // Images have their own size limits (token budget + compression) —
     // don't apply the text maxSizeBytes cap.
     const data = await readImageWithTokenBudget(resolvedFilePath, maxTokens)
@@ -892,6 +989,27 @@ async function callInner(
 
   // --- PDF ---
   if (isPDFExtension(ext)) {
+    if (getAPIProvider() === 'deepseek') {
+      const parsedRange = pages ? parsePDFPageRange(pages) : undefined
+      const extracted = await extractPDFText(
+        resolvedFilePath,
+        parsedRange ?? undefined,
+      )
+      return createExtractedTextResponse(
+        file_path,
+        fullFilePath,
+        resolvedFilePath,
+        extracted.content,
+        extracted.source,
+        offset,
+        limit,
+        maxSizeBytes,
+        maxTokens,
+        readFileState,
+        context,
+      )
+    }
+
     if (pages) {
       const parsedRange = parsePDFPageRange(pages)
       const extractResult = await extractPDFPages(

@@ -16,6 +16,14 @@ import { getWorkload } from './workloadContext.js'
 // WARNING: We rely on `claude-cli` in the user agent for log filtering.
 // Please do NOT change this without making sure that logging also gets updated!
 export function getUserAgent(): string {
+  if (
+    process.env.CLAUDE_CODE_USE_DEEPSEEK ||
+    process.env.DEEPSEEK_API_KEY ||
+    process.env.DEEPSEEK_BASE_URL
+  ) {
+    return `deepseek-code/${MACRO.VERSION} (${process.env.CLAUDE_CODE_ENTRYPOINT ?? 'cli'})`
+  }
+
   const agentSdkVersion = process.env.CLAUDE_AGENT_SDK_VERSION
     ? `, agent-sdk/${process.env.CLAUDE_AGENT_SDK_VERSION}`
     : ''

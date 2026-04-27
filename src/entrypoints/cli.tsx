@@ -37,7 +37,7 @@ async function main(): Promise<void> {
   if (args.length === 1 && (args[0] === '--version' || args[0] === '-v' || args[0] === '-V')) {
     // MACRO.VERSION is inlined at build time
     // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.log(`${MACRO.VERSION} (Claude Code)`);
+    console.log(`${MACRO.VERSION} (DeepSeek Code)`);
     return;
   }
 
@@ -111,6 +111,10 @@ async function main(): Promise<void> {
   // isBridgeEnabled() checks the runtime GrowthBook gate.
   if (feature('BRIDGE_MODE') && (args[0] === 'remote-control' || args[0] === 'rc' || args[0] === 'remote' || args[0] === 'sync' || args[0] === 'bridge')) {
     profileCheckpoint('cli_bridge_path');
+    if (process.env.CLAUDE_CODE_USE_DEEPSEEK || process.env.DEEPSEEK_API_KEY || process.env.DEEPSEEK_BASE_URL) {
+      console.error('Remote Control is not available in DeepSeek Code.')
+      process.exit(1)
+    }
     const {
       enableConfigs
     } = await import('../utils/config.js');

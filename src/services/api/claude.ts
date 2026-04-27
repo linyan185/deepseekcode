@@ -539,7 +539,8 @@ export async function verifyApiKey(
   try {
     // WARNING: if you change this to use a non-Haiku model, this request will fail in 1P unless it uses getCLISyspromptPrefix.
     const model = getSmallFastModel()
-    const betas = getModelBetas(model)
+    const isDeepSeek = getAPIProvider() === 'deepseek'
+    const betas = isDeepSeek ? [] : getModelBetas(model)
     return await returnValue(
       withRetry(
         () =>
@@ -551,8 +552,11 @@ export async function verifyApiKey(
           }),
         async anthropic => {
           const messages: MessageParam[] = [{ role: 'user', content: 'test' }]
+          const messagesApi = isDeepSeek
+            ? (anthropic.messages as unknown as typeof anthropic.beta.messages)
+            : anthropic.beta.messages
           // biome-ignore lint/plugin: API key verification is intentionally a minimal direct call
-          await anthropic.beta.messages.create({
+          await messagesApi.create({
             model,
             max_tokens: 1,
             messages,
@@ -860,8 +864,12 @@ export async function* executeNonStreamingRequest(
       )
 
       try {
+        const messagesApi =
+          getAPIProvider() === 'deepseek'
+            ? (anthropic.messages as unknown as typeof anthropic.beta.messages)
+            : anthropic.beta.messages
         // biome-ignore lint/plugin: non-streaming API call
-        return await anthropic.beta.messages.create(
+        return await messagesApi.create(
           {
             ...adjustedParams,
             model: normalizeModelStringForAPI(adjustedParams.model),
@@ -938,15 +946,103 @@ function getPreviousRequestIdFromMessages(
 }
 
 function isMedia(
-  block: BetaContentBlockParam,
+  block: unknown,
 ): block is BetaImageBlockParam | BetaRequestDocumentBlock {
-  return block.type === 'image' || block.type === 'document'
+  const type = (block as { type?: string } | null | undefined)?.type
+  return type === 'image' || type === 'document'
 }
 
 function isToolResult(
-  block: BetaContentBlockParam,
+  block: unknown,
 ): block is BetaToolResultBlockParam {
-  return block.type === 'tool_result'
+  return (block as { type?: string } | null | undefined)?.type === 'tool_result'
+}
+
+function deepSeekUnsupportedMediaToText(
+  block: BetaContentBlockParam,
+): BetaContentBlockParam {
+  const type = (block as { type?: string }).type || 'media'
+  const label =
+    type === 'image'
+      ? 'image/screenshot'
+      : type === 'document'
+        ? 'document/PDF'
+        : type
+
+  return {
+    type: 'text',
+    text: `[${label} omitted: the configured DeepSeek API does not support native ${type} content blocks in this adapter. Convert it to text/OCR first, or describe the content in text.]`,
+  } as BetaContentBlockParam
+}
+
+function isDeepSeekUnsupportedContentBlock(block: BetaContentBlockParam): boolean {
+  const type = (block as { type?: string }).type
+  if (isMedia(block)) return true
+  if (type === 'thinking' || type === 'redacted_thinking') return true
+  return type !== 'text' && type !== 'tool_use' && type !== 'tool_result'
+}
+
+function sanitizeDeepSeekContentBlocks(
+  blocks: BetaContentBlockParam[],
+): BetaContentBlockParam[] {
+  let changed = false
+  const sanitized = blocks.map(block => {
+    if (isToolResult(block) && Array.isArray(block.content)) {
+      const nested = sanitizeDeepSeekContentBlocks(
+        block.content as BetaContentBlockParam[],
+      )
+      if (nested !== block.content) {
+        changed = true
+        return {
+          ...block,
+          content: nested,
+        } as BetaContentBlockParam
+      }
+    }
+
+    if (isDeepSeekUnsupportedContentBlock(block)) {
+      changed = true
+      return deepSeekUnsupportedMediaToText(block)
+    }
+
+    return block
+  })
+
+  return changed ? sanitized : blocks
+}
+
+export function sanitizeMessagesForDeepSeek(
+  messages: (UserMessage | AssistantMessage)[],
+): (UserMessage | AssistantMessage)[] {
+  if (getAPIProvider() !== 'deepseek') {
+    return messages
+  }
+
+  let changed = false
+  const sanitized = messages.map(msg => {
+    const content = msg.message.content
+    if (!Array.isArray(content)) {
+      return msg
+    }
+
+    const sanitizedContent = sanitizeDeepSeekContentBlocks(
+      content as BetaContentBlockParam[],
+    )
+    if (sanitizedContent === content) {
+      return msg
+    }
+
+    changed = true
+    return {
+      ...msg,
+      message: {
+        ...msg.message,
+        content: sanitizedContent,
+      },
+    } as typeof msg
+  })
+
+  return changed ? sanitized : messages
 }
 
 /**
@@ -1073,12 +1169,12 @@ async function* queryModel(
   // Always send the advisor beta header when advisor is enabled, so
   // non-agentic queries (compact, side_question, extract_memories, etc.)
   // can parse advisor server_tool_use blocks already in the conversation history.
-  if (isAdvisorEnabled()) {
+  if (getAPIProvider() !== 'deepseek' && isAdvisorEnabled()) {
     betas.push(ADVISOR_BETA_HEADER)
   }
 
   let advisorModel: string | undefined
-  if (isAgenticQuery && isAdvisorEnabled()) {
+  if (getAPIProvider() !== 'deepseek' && isAgenticQuery && isAdvisorEnabled()) {
     let advisorOption = options.advisorModel
 
     const advisorExperiment = getExperimentAdvisorModels()
@@ -1313,6 +1409,7 @@ async function* queryModel(
     messagesForAPI,
     API_MAX_MEDIA_PER_REQUEST,
   )
+  messagesForAPI = sanitizeMessagesForDeepSeek(messagesForAPI)
 
   // Instrumentation: Track message count after normalization
   logEvent('tengu_api_after_normalize', {
@@ -1593,10 +1690,14 @@ async function* queryModel(
       options.maxOutputTokensOverride ||
       getMaxOutputTokensForModel(options.model)
 
+    const isDeepSeek = getAPIProvider() === 'deepseek'
     const hasThinking =
+      !isDeepSeek &&
       thinkingConfig.type !== 'disabled' &&
       !isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_THINKING)
-    let thinking: BetaMessageStreamParams['thinking'] | undefined = undefined
+    let thinking: BetaMessageStreamParams['thinking'] | undefined = isDeepSeek
+      ? { type: 'disabled' }
+      : undefined
 
     // IMPORTANT: Do not change the adaptive-vs-budget thinking selection below
     // without notifying the model launch DRI and research. This is a sensitive
@@ -1819,7 +1920,11 @@ async function* queryModel(
         // BetaMessageStream calls partialParse() on every input_json_delta, which we don't need
         // since we handle tool input accumulation ourselves
         // biome-ignore lint/plugin: main conversation loop handles attribution separately
-        const result = await anthropic.beta.messages
+        const messagesApi =
+          getAPIProvider() === 'deepseek'
+            ? (anthropic.messages as unknown as typeof anthropic.beta.messages)
+            : anthropic.beta.messages
+        const result = await messagesApi
           .create(
             { ...params, stream: true },
             {

@@ -255,7 +255,7 @@ const externalTips: Tip[] = [
   {
     id: 'prompt-queue',
     content: async () =>
-      'Hit Enter to queue up additional messages while Claude is working.',
+      'Hit Enter to queue up additional messages while DeepSeek Code is working.',
     cooldownSessions: 5,
     async isRelevant() {
       const config = getGlobalConfig()
@@ -265,14 +265,14 @@ const externalTips: Tip[] = [
   {
     id: 'enter-to-steer-in-relatime',
     content: async () =>
-      'Send messages to Claude while it works to steer Claude in real-time',
+      'Send messages to DeepSeek Code while it works to steer it in real-time',
     cooldownSessions: 20,
     isRelevant: async () => true,
   },
   {
     id: 'todo-list',
     content: async () =>
-      'Ask Claude to create a todo list when working on complex tasks to track progress and remain on track',
+      'Ask DeepSeek Code to create a todo list when working on complex tasks to track progress and remain on track',
     cooldownSessions: 20,
     isRelevant: async () => true,
   },
@@ -305,7 +305,7 @@ const externalTips: Tip[] = [
   },
   {
     id: 'ide-upsell-external-terminal',
-    content: async () => 'Connect Claude to your IDE · /ide',
+    content: async () => 'Connect DeepSeek Code to your IDE · /ide',
     cooldownSessions: 4,
     async isRelevant() {
       if (isSupportedTerminal()) {
@@ -325,13 +325,13 @@ const externalTips: Tip[] = [
   {
     id: 'install-github-app',
     content: async () =>
-      'Run /install-github-app to tag @claude right from your Github issues and PRs',
+      'Run /install-github-app to connect DeepSeek Code with your Github issues and PRs',
     cooldownSessions: 10,
     isRelevant: async () => !getGlobalConfig().githubActionSetupCount,
   },
   {
     id: 'install-slack-app',
-    content: async () => 'Run /install-slack-app to use Claude in Slack',
+    content: async () => 'Run /install-slack-app to use DeepSeek Code in Slack',
     cooldownSessions: 10,
     isRelevant: async () => !getGlobalConfig().slackAppInstallCount,
   },
@@ -355,7 +355,7 @@ const externalTips: Tip[] = [
   {
     id: 'paste-images-mac',
     content: async () =>
-      'Paste images into Claude Code using control+v (not cmd+v!)',
+      'Paste images into DeepSeek Code using control+v (not cmd+v!)',
     cooldownSessions: 10,
     isRelevant: async () => getPlatform() === 'macos',
   },
@@ -376,7 +376,7 @@ const externalTips: Tip[] = [
   {
     id: 'continue',
     content: async () =>
-      'Run claude --continue or claude --resume to resume a conversation',
+      'Use --continue or --resume to resume a conversation',
     cooldownSessions: 10,
     isRelevant: async () => true,
   },
@@ -391,7 +391,7 @@ const externalTips: Tip[] = [
   {
     id: 'custom-commands',
     content: async () =>
-      'Create skills by adding .md files to .claude/skills/ in your project or ~/.claude/skills/ for skills that work in any project',
+      'Create skills by adding skill .md files to your project or user skills directory',
     cooldownSessions: 15,
     async isRelevant() {
       const config = getGlobalConfig()
@@ -437,7 +437,7 @@ const externalTips: Tip[] = [
   {
     id: 'desktop-app',
     content: async () =>
-      'Run Claude Code locally or remotely using the Claude desktop app: clau.de/desktop',
+      'Run DeepSeek Code locally or remotely using the Claude desktop app: clau.de/desktop',
     cooldownSessions: 15,
     isRelevant: async () => getPlatform() !== 'linux',
   },
@@ -445,7 +445,7 @@ const externalTips: Tip[] = [
     id: 'desktop-shortcut',
     content: async ctx => {
       const blue = color('suggestion', ctx.theme)
-      return `Continue your session in Claude Code Desktop with ${blue('/desktop')}`
+      return `Continue your session in DeepSeek Code Desktop with ${blue('/desktop')}`
     },
     cooldownSessions: 15,
     isRelevant: async () => {
@@ -466,14 +466,14 @@ const externalTips: Tip[] = [
   {
     id: 'mobile-app',
     content: async () =>
-      '/mobile to use Claude Code from the Claude app on your phone',
+      '/mobile to use DeepSeek Code from DeepSeek Code on your phone',
     cooldownSessions: 15,
     isRelevant: async () => true,
   },
   {
     id: 'opusplan-mode-reminder',
     content: async () =>
-      `Your default model setting is Opus Plan Mode. Press ${getShortcutDisplay('chat:cycleMode', 'Chat', 'shift+tab')} twice to activate Plan Mode and plan with Claude Opus.`,
+      `Your default model setting is Opus Plan Mode. Press ${getShortcutDisplay('chat:cycleMode', 'Chat', 'shift+tab')} twice to activate Plan Mode and plan with DeepSeek.`,
     cooldownSessions: 2,
     async isRelevant() {
       if (process.env.USER_TYPE === 'ant') return false
@@ -593,7 +593,7 @@ const externalTips: Tip[] = [
       const claude = color('claude', ctx.theme)
       const reward = getCachedReferrerReward()
       return reward
-        ? `Share Claude Code and earn ${claude(formatCreditAmount(reward))} of extra usage · ${claude('/passes')}`
+        ? `Share DeepSeek Code and earn ${claude(formatCreditAmount(reward))} of extra usage · ${claude('/passes')}`
         : `You have free guest passes to share · ${claude('/passes')}`
     },
     cooldownSessions: 3,

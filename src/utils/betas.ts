@@ -237,6 +237,10 @@ export const getAllModelBetas = memoize((model: string): string[] => {
   const provider = getAPIProvider()
   const includeFirstPartyOnlyBetas = shouldIncludeFirstPartyOnlyBetas()
 
+  if (provider === 'deepseek') {
+    return betaHeaders
+  }
+
   if (!isHaiku) {
     betaHeaders.push(CLAUDE_CODE_20250219_BETA_HEADER)
     if (
@@ -399,6 +403,10 @@ export function getMergedBetas(
   options?: { isAgenticQuery?: boolean },
 ): string[] {
   const baseBetas = [...getModelBetas(model)]
+
+  if (getAPIProvider() === 'deepseek') {
+    return baseBetas
+  }
 
   // Agentic queries always need claude-code and cli-internal beta headers.
   // For non-Haiku models these are already in baseBetas; for Haiku they're

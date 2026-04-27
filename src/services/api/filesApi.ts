@@ -16,6 +16,7 @@ import { getCwd } from '../../utils/cwd.js'
 import { logForDebugging } from '../../utils/debug.js'
 import { errorMessage } from '../../utils/errors.js'
 import { logError } from '../../utils/log.js'
+import { getAPIProvider } from '../../utils/model/providers.js'
 import { sleep } from '../../utils/sleep.js'
 import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
@@ -30,6 +31,10 @@ const ANTHROPIC_VERSION = '2023-06-01'
 // API base URL - uses ANTHROPIC_BASE_URL set by env-manager for the appropriate environment
 // Falls back to public API for standalone usage
 function getDefaultApiBaseUrl(): string {
+  if (getAPIProvider() === 'deepseek') {
+    throw new Error('The --file API is not supported in DeepSeek mode.')
+  }
+
   return (
     process.env.ANTHROPIC_BASE_URL ||
     process.env.CLAUDE_CODE_API_BASE_URL ||

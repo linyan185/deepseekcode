@@ -11,13 +11,13 @@ import {
   ghost,
   goose,
   mushroom,
-  octopus,
   owl,
   penguin,
   rabbit,
   robot,
   snail,
   turtle,
+  whale,
 } from './types.js'
 
 // Each sprite is 5 lines tall, 12 wide (after {E}→1char substitution).
@@ -139,27 +139,27 @@ const BODIES: Record<Species, string[][]> = {
       '  `-vvvv-´  ',
     ],
   ],
-  [octopus]: [
+  [whale]: [
     [
       '            ',
-      '   .----.   ',
-      '  ( {E}  {E} )  ',
-      '  (______)  ',
-      '  /\\/\\/\\/\\  ',
+      '    .  .    ',
+      ' __    __   ',
+      '/ {E}\\__/  \\_ ',
+      '\\___    __/ ',
     ],
     [
       '            ',
-      '   .----.   ',
-      '  ( {E}  {E} )  ',
-      '  (______)  ',
-      '  \\/\\/\\/\\/  ',
+      '   .  .     ',
+      ' __    __   ',
+      '/ {E}\\__/  \\_~',
+      '\\___    __/ ',
     ],
     [
-      '     o      ',
-      '   .----.   ',
-      '  ( {E}  {E} )  ',
-      '  (______)  ',
-      '  /\\/\\/\\/\\  ',
+      '  .  .  .   ',
+      ' __  | __   ',
+      '/ {E}\\__/  \\_ ',
+      '\\___    __/ ',
+      '    \\__/    ',
     ],
   ],
   [owl]: [
@@ -484,7 +484,7 @@ export function renderFace(bones: CompanionBones): string {
       return `=${eye}ω${eye}=`
     case dragon:
       return `<${eye}~${eye}>`
-    case octopus:
+    case whale:
       return `~(${eye}${eye})~`
     case owl:
       return `(${eye})(${eye})`

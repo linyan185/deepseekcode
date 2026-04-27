@@ -95,6 +95,15 @@ function getCustomSonnetOption(): ModelOption | undefined {
 // with the new model's label and description. These appear in the /model picker.
 function getSonnet46Option(): ModelOption {
   const is3P = getAPIProvider() !== 'firstParty'
+  if (getAPIProvider() === 'deepseek') {
+    return {
+      value: getModelStrings().sonnet46,
+      label: 'DeepSeek Pro',
+      description: 'DeepSeek V4 Pro - Best for everyday coding tasks',
+      descriptionForModel:
+        'DeepSeek V4 Pro - capable general-purpose coding model',
+    }
+  }
   return {
     value: is3P ? getModelStrings().sonnet46 : 'sonnet',
     label: 'Sonnet',
@@ -132,6 +141,15 @@ function getOpus41Option(): ModelOption {
 
 function getOpus46Option(fastMode = false): ModelOption {
   const is3P = getAPIProvider() !== 'firstParty'
+  if (getAPIProvider() === 'deepseek') {
+    return {
+      value: getModelStrings().opus46,
+      label: 'DeepSeek Pro',
+      description: 'DeepSeek V4 Pro - Most capable for complex work',
+      descriptionForModel:
+        'DeepSeek V4 Pro - most capable DeepSeek model for complex coding tasks',
+    }
+  }
   return {
     value: is3P ? getModelStrings().opus46 : 'opus',
     label: 'Opus',
@@ -180,6 +198,15 @@ function getCustomHaikuOption(): ModelOption | undefined {
 
 function getHaiku45Option(): ModelOption {
   const is3P = getAPIProvider() !== 'firstParty'
+  if (getAPIProvider() === 'deepseek') {
+    return {
+      value: getModelStrings().haiku45,
+      label: 'DeepSeek Flash',
+      description: 'DeepSeek V4 Flash - Fastest for quick answers',
+      descriptionForModel:
+        'DeepSeek V4 Flash - fast model for simple coding tasks',
+    }
+  }
   return {
     value: 'haiku',
     label: 'Haiku',

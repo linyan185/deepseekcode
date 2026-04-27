@@ -1,7 +1,23 @@
 import type { AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS } from '../../services/analytics/index.js'
 import { isEnvTruthy } from '../envUtils.js'
 
-export type APIProvider = 'firstParty' | 'bedrock' | 'vertex' | 'foundry'
+export type APIProvider =
+  | 'firstParty'
+  | 'bedrock'
+  | 'vertex'
+  | 'foundry'
+  | 'deepseek'
+
+function isDeepSeekBaseUrl(value: string | undefined): boolean {
+  if (!value) {
+    return false
+  }
+  try {
+    return new URL(value).hostname.toLowerCase().endsWith('deepseek.com')
+  } catch {
+    return false
+  }
+}
 
 export function getAPIProvider(): APIProvider {
   return isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK)
@@ -10,7 +26,12 @@ export function getAPIProvider(): APIProvider {
       ? 'vertex'
       : isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
         ? 'foundry'
-        : 'firstParty'
+        : isEnvTruthy(process.env.CLAUDE_CODE_USE_DEEPSEEK) ||
+            !!process.env.DEEPSEEK_API_KEY ||
+            !!process.env.DEEPSEEK_BASE_URL ||
+            isDeepSeekBaseUrl(process.env.ANTHROPIC_BASE_URL)
+          ? 'deepseek'
+          : 'firstParty'
 }
 
 export function getAPIProviderForStatsig(): AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS {

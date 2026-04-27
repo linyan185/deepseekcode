@@ -22,6 +22,9 @@ export type EffortValue = EffortLevel | number
 // @[MODEL LAUNCH]: Add the new model to the allowlist if it supports the effort parameter.
 export function modelSupportsEffort(model: string): boolean {
   const m = model.toLowerCase()
+  if (getAPIProvider() === 'deepseek') {
+    return false
+  }
   if (isEnvTruthy(process.env.CLAUDE_CODE_ALWAYS_ENABLE_EFFORT)) {
     return true
   }
@@ -153,6 +156,10 @@ export function resolveAppliedEffort(
   model: string,
   appStateEffortValue: EffortValue | undefined,
 ): EffortValue | undefined {
+  if (getAPIProvider() === 'deepseek') {
+    return undefined
+  }
+
   const envOverride = getEffortEnvOverride()
   if (envOverride === null) {
     return undefined

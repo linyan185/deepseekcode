@@ -45,7 +45,7 @@ If you did find a stuck/slow session, post to **#claude-code-feedback** (channel
 
 **Use a two-message structure** to keep the channel scannable:
 
-1. **Top-level message** — one short line: hostname, Claude Code version, and a terse symptom (e.g. "session PID 12345 pegged at 100% CPU for 10min" or "git subprocess hung in D state"). No code blocks, no details.
+1. **Top-level message** — one short line: hostname, DeepSeek Code version, and a terse symptom (e.g. "session PID 12345 pegged at 100% CPU for 10min" or "git subprocess hung in D state"). No code blocks, no details.
 2. **Thread reply** — the full diagnostic dump. Pass the top-level message's \`ts\` as \`thread_ts\`. Include:
    - PID, CPU%, RSS, state, uptime, command line, child processes
    - Your diagnosis of what's likely wrong

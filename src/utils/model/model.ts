@@ -66,7 +66,11 @@ export function getUserSpecifiedModelSetting(): ModelSetting | undefined {
     specifiedModel = modelOverride
   } else {
     const settings = getSettings_DEPRECATED() || {}
-    specifiedModel = process.env.ANTHROPIC_MODEL || settings.model || undefined
+    specifiedModel =
+      (getAPIProvider() === 'deepseek' ? process.env.DEEPSEEK_MODEL : undefined) ||
+      process.env.ANTHROPIC_MODEL ||
+      settings.model ||
+      undefined
   }
 
   // Ignore the user-specified model if it's not in the availableModels allowlist.
@@ -286,6 +290,9 @@ export function getCanonicalName(fullModelName: ModelName): ModelShortName {
 export function getClaudeAiUserDefaultModelDescription(
   fastMode = false,
 ): string {
+  if (getAPIProvider() === 'deepseek') {
+    return 'DeepSeek V4 Flash - Best for everyday coding tasks'
+  }
   if (isMaxSubscriber() || isTeamPremiumSubscriber()) {
     if (isOpus1mMergeEnabled()) {
       return `Opus 4.6 with 1M context · Most capable for complex work${fastMode ? getOpus46PricingSuffix(true) : ''}`
@@ -347,6 +354,21 @@ export function renderModelSetting(setting: ModelName | ModelAlias): string {
  * if the model is not recognized as a public model.
  */
 export function getPublicModelDisplayName(model: ModelName): string | null {
+  if (getAPIProvider() === 'deepseek') {
+    const normalized = model.toLowerCase()
+    if (normalized.includes('deepseek-v4-pro')) {
+      return 'DeepSeek V4 Pro (1M context)'
+    }
+    if (normalized.includes('deepseek-v4-flash')) {
+      return 'DeepSeek V4 Flash'
+    }
+    if (normalized.includes('deepseek-reasoner')) {
+      return 'DeepSeek Reasoner'
+    }
+    if (normalized.includes('deepseek-chat')) {
+      return 'DeepSeek Chat'
+    }
+  }
   switch (model) {
     case getModelStrings().opus46:
       return 'Opus 4.6'
@@ -425,9 +447,9 @@ export function renderModelName(model: ModelName): string {
 export function getPublicModelName(model: ModelName): string {
   const publicName = getPublicModelDisplayName(model)
   if (publicName) {
-    return `Claude ${publicName}`
+    return getAPIProvider() === 'deepseek' ? publicName : `Claude ${publicName}`
   }
-  return `Claude (${model})`
+  return getAPIProvider() === 'deepseek' ? `DeepSeek (${model})` : `Claude (${model})`
 }
 
 /**

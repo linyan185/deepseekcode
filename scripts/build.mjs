@@ -1,26 +1,8 @@
 #!/usr/bin/env node
-/**
- * build.mjs — Best-effort build of Claude Code v2.1.88 from source
- *
- * ⚠️  IMPORTANT: A complete rebuild requires the Bun runtime's compile-time
- *     intrinsics (feature(), MACRO, bun:bundle). This script provides a
- *     best-effort build using esbuild. See KNOWN_ISSUES.md for details.
- *
- * What this script does:
- *   1. Copy src/ → build-src/ (original untouched)
- *   2. Replace `feature('X')` → `false`  (compile-time → runtime)
- *   3. Replace `MACRO.VERSION` etc → string literals
- *   4. Replace `import from 'bun:bundle'` → stub
- *   5. Create stubs for missing feature-gated modules
- *   6. Bundle with esbuild → dist/cli.js
- *
- * Requirements: Node.js >= 18, npm
- * Usage:       node scripts/build.mjs
- */
 
-import { readdir, readFile, writeFile, mkdir, cp, rm, stat } from 'node:fs/promises'
-import { join, dirname } from 'node:path'
-import { execSync } from 'node:child_process'
+import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { execFileSync, execSync } from 'node:child_process'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -28,218 +10,314 @@ const ROOT = join(__dirname, '..')
 const VERSION = '2.1.88'
 const BUILD = join(ROOT, 'build-src')
 const ENTRY = join(BUILD, 'entry.ts')
-
-// ── Helpers ────────────────────────────────────────────────────────────────
+const OUT_DIR = join(ROOT, 'dist')
+const OUT_FILE = join(OUT_DIR, 'cli.js')
+const ESBUILD_BIN = join(ROOT, 'node_modules', 'esbuild', 'bin', 'esbuild')
 
 async function* walk(dir) {
-  for (const e of await readdir(dir, { withFileTypes: true })) {
-    const p = join(dir, e.name)
-    if (e.isDirectory() && e.name !== 'node_modules') yield* walk(p)
-    else yield p
-  }
-}
-
-async function exists(p) { try { await stat(p); return true } catch { return false } }
-
-async function ensureEsbuild() {
-  try { execSync('npx esbuild --version', { stdio: 'pipe' }) }
-  catch {
-    console.log('📦 Installing esbuild...')
-    execSync('npm install --save-dev esbuild', { cwd: ROOT, stdio: 'inherit' })
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// PHASE 1: Copy source
-// ══════════════════════════════════════════════════════════════════════════════
-
-await rm(BUILD, { recursive: true, force: true })
-await mkdir(BUILD, { recursive: true })
-await cp(join(ROOT, 'src'), join(BUILD, 'src'), { recursive: true })
-console.log('✅ Phase 1: Copied src/ → build-src/')
-
-// ══════════════════════════════════════════════════════════════════════════════
-// PHASE 2: Transform source
-// ══════════════════════════════════════════════════════════════════════════════
-
-let transformCount = 0
-
-// MACRO replacements
-const MACROS = {
-  'MACRO.VERSION': `'${VERSION}'`,
-  'MACRO.BUILD_TIME': `''`,
-  'MACRO.FEEDBACK_CHANNEL': `'https://github.com/anthropics/claude-code/issues'`,
-  'MACRO.ISSUES_EXPLAINER': `'https://github.com/anthropics/claude-code/issues/new/choose'`,
-  'MACRO.FEEDBACK_CHANNEL_URL': `'https://github.com/anthropics/claude-code/issues'`,
-  'MACRO.ISSUES_EXPLAINER_URL': `'https://github.com/anthropics/claude-code/issues/new/choose'`,
-  'MACRO.NATIVE_PACKAGE_URL': `'@anthropic-ai/claude-code'`,
-  'MACRO.PACKAGE_URL': `'@anthropic-ai/claude-code'`,
-  'MACRO.VERSION_CHANGELOG': `''`,
-}
-
-for await (const file of walk(join(BUILD, 'src'))) {
-  if (!file.match(/\.[tj]sx?$/)) continue
-
-  let src = await readFile(file, 'utf8')
-  let changed = false
-
-  // 2a. feature('X') → false
-  if (/\bfeature\s*\(\s*['"][A-Z_]+['"]\s*\)/.test(src)) {
-    src = src.replace(/\bfeature\s*\(\s*['"][A-Z_]+['"]\s*\)/g, 'false')
-    changed = true
-  }
-
-  // 2b. MACRO.X → literals
-  for (const [k, v] of Object.entries(MACROS)) {
-    if (src.includes(k)) {
-      src = src.replaceAll(k, v)
-      changed = true
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name)
+    if (entry.isDirectory() && entry.name !== 'node_modules') {
+      yield* walk(path)
+    } else {
+      yield path
     }
   }
+}
 
-  // 2c. Remove bun:bundle import (feature() is already replaced)
-  if (src.includes("from 'bun:bundle'") || src.includes('from "bun:bundle"')) {
-    src = src.replace(/import\s*\{\s*feature\s*\}\s*from\s*['"]bun:bundle['"];?\n?/g, '// feature() replaced with false at build time\n')
-    changed = true
-  }
-
-  // 2d. Remove type-only import of global.d.ts
-  if (src.includes("import '../global.d.ts'") || src.includes("import './global.d.ts'")) {
-    src = src.replace(/import\s*['"][.\/]*global\.d\.ts['"];?\n?/g, '')
-    changed = true
-  }
-
-  if (changed) {
-    await writeFile(file, src, 'utf8')
-    transformCount++
+async function exists(path) {
+  try {
+    await stat(path)
+    return true
+  } catch {
+    return false
   }
 }
-console.log(`✅ Phase 2: Transformed ${transformCount} files`)
 
-// ══════════════════════════════════════════════════════════════════════════════
-// PHASE 3: Create entry wrapper
-// ══════════════════════════════════════════════════════════════════════════════
+async function ensureEsbuild() {
+  if (await exists(ESBUILD_BIN)) return
+  execSync('npm install --save-dev esbuild', { cwd: ROOT, stdio: 'inherit' })
+}
 
-await writeFile(ENTRY, `#!/usr/bin/env node
-// Claude Code v${VERSION} — built from source
-// Copyright (c) Anthropic PBC. All rights reserved.
-import './src/entrypoints/cli.tsx'
-`, 'utf8')
-console.log('✅ Phase 3: Created entry wrapper')
+function importerToBuildPath(importer) {
+  const normalized = importer.replace(/\\/g, '/')
+  if (normalized.startsWith('build-src/')) return join(ROOT, normalized)
+  if (normalized.startsWith('src/')) return join(BUILD, normalized)
+  return join(ROOT, normalized)
+}
 
-// ══════════════════════════════════════════════════════════════════════════════
-// PHASE 4: Iterative stub + bundle
-// ══════════════════════════════════════════════════════════════════════════════
+function parseMissingModules(output) {
+  const missingRe =
+    /Could not resolve "([^"]+)"([\s\S]*?)(?=\nX \[ERROR\]|\n\d+ errors?|$)/g
+  const missing = []
+  let match
+  while ((match = missingRe.exec(output)) !== null) {
+    const mod = match[1]
+    if (mod.startsWith('node:') || mod.startsWith('bun:') || mod.startsWith('/')) {
+      continue
+    }
+    const location = (match[2] || '').match(/\n\s+([^:\n]+):\d+:\d+:/)
+    missing.push({ mod, importer: location?.[1]?.trim() })
+  }
+  return missing
+}
 
-await ensureEsbuild()
+function parseMissingExports(output) {
+  const exportRe = /No matching export in "([^"]+)" for import "([^"]+)"/g
+  const missing = []
+  let match
+  while ((match = exportRe.exec(output)) !== null) {
+    missing.push({ path: join(ROOT, match[1]), name: match[2] })
+  }
+  return missing
+}
 
-const OUT_DIR = join(ROOT, 'dist')
-await mkdir(OUT_DIR, { recursive: true })
-const OUT_FILE = join(OUT_DIR, 'cli.js')
+function stubPathFor({ mod, importer }) {
+  const cleanMod = mod.replace(/^\.\//, '')
+  if (mod.startsWith('.') && importer) {
+    return join(dirname(importerToBuildPath(importer)), mod)
+  }
+  if (mod.startsWith('@')) {
+    const [scope, pkg, ...rest] = mod.split('/')
+    return join(BUILD, 'node_modules', scope, pkg, rest.length ? rest.join('/') : 'index.js')
+  }
+  const [pkg, ...rest] = cleanMod.split('/')
+  return join(BUILD, 'node_modules', pkg, rest.length ? rest.join('/') : 'index.js')
+}
 
-// Run up to 5 rounds of: esbuild → collect missing → create stubs → retry
-const MAX_ROUNDS = 5
-let succeeded = false
+function safeExportName(path) {
+  const base = path.split(/[\\/]/).pop().replace(/\.[tj]sx?$/, '')
+  let name = base.replace(/[^a-zA-Z0-9_$]/g, '_') || 'stub'
+  if (!/^[a-zA-Z_$]/.test(name)) name = `stub_${name}`
+  return name
+}
 
-for (let round = 1; round <= MAX_ROUNDS; round++) {
-  console.log(`\n🔨 Phase 4 round ${round}/${MAX_ROUNDS}: Bundling...`)
+async function createStub(path) {
+  await mkdir(dirname(path), { recursive: true })
+  if (await exists(path)) return false
 
-  let esbuildOutput = ''
+  if (path.endsWith('.json')) {
+    await writeFile(path, '{}', 'utf8')
+    return true
+  }
+  if (/\.(txt|md)$/.test(path)) {
+    await writeFile(path, '', 'utf8')
+    return true
+  }
+  if (/\.[tj]sx?$/.test(path)) {
+    const name = safeExportName(path)
+    await writeFile(
+      path,
+      `// Auto-generated build stub\nconst ${name} = Object.assign([], { enabled: false })\nexport { ${name} }\nexport default ${name}\n`,
+      'utf8',
+    )
+    if (path.includes(`${BUILD}${process.platform === 'win32' ? '\\' : '/'}node_modules`)) {
+      const pkgDir = path.endsWith('index.js') ? dirname(path) : null
+      if (pkgDir) {
+        await writeFile(
+          join(pkgDir, 'package.json'),
+          JSON.stringify({ type: 'module', main: 'index.js' }, null, 2),
+          'utf8',
+        )
+      }
+    }
+    return true
+  }
+  return false
+}
+
+async function addMissingExport(path, name) {
+  if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(name)) return false
+  if (!(await exists(path))) return false
+  const source = await readFile(path, 'utf8')
+  const namedExport = new RegExp(`export\\s+(const|function|class)\\s+${name}\\b`)
+  const exportList = new RegExp(`export\\s*\\{[^}]*\\b${name}\\b[^}]*\\}`)
+  if (namedExport.test(source) || exportList.test(source)) return false
+  await writeFile(
+    path,
+    `${source}\nexport const ${name} = Object.assign([], { enabled: false })\n`,
+    'utf8',
+  )
+  return true
+}
+
+async function prepareBuildSource() {
+  await rm(BUILD, { recursive: true, force: true })
+  await mkdir(BUILD, { recursive: true })
+  await cp(join(ROOT, 'src'), join(BUILD, 'src'), { recursive: true })
+  console.log('OK Phase 1: copied src/ to build-src/')
+
+  const macros = {
+    'MACRO.VERSION': `'${VERSION}'`,
+    'MACRO.BUILD_TIME': `''`,
+    'MACRO.FEEDBACK_CHANNEL': `'https://github.com/anthropics/claude-code/issues'`,
+    'MACRO.ISSUES_EXPLAINER': `'https://github.com/anthropics/claude-code/issues/new/choose'`,
+    'MACRO.FEEDBACK_CHANNEL_URL': `'https://github.com/anthropics/claude-code/issues'`,
+    'MACRO.ISSUES_EXPLAINER_URL': `'https://github.com/anthropics/claude-code/issues/new/choose'`,
+    'MACRO.NATIVE_PACKAGE_URL': `'@anthropic-ai/claude-code'`,
+    'MACRO.PACKAGE_URL': `'@anthropic-ai/claude-code'`,
+    'MACRO.VERSION_CHANGELOG': `''`,
+  }
+
+  let transformed = 0
+  for await (const file of walk(join(BUILD, 'src'))) {
+    if (!file.match(/\.[tj]sx?$/)) continue
+    let source = await readFile(file, 'utf8')
+    let changed = false
+
+    if (/\bfeature\s*\(\s*['"][^'"]+['"]\s*,?\s*\)/.test(source)) {
+      source = source.replace(
+        /\bfeature\s*\(\s*['"][^'"]+['"]\s*,?\s*\)/g,
+        'false',
+      )
+      changed = true
+    }
+
+    for (const [key, value] of Object.entries(macros).sort(
+      ([a], [b]) => b.length - a.length,
+    )) {
+      if (source.includes(key)) {
+        source = source.replaceAll(key, value)
+        changed = true
+      }
+    }
+
+    if (source.includes("from 'bun:bundle'") || source.includes('from "bun:bundle"')) {
+      source = source.replace(
+        /import\s*\{\s*feature\s*\}\s*from\s*['"]bun:bundle['"];?\n?/g,
+        '// feature() replaced with false at build time\n',
+      )
+      changed = true
+    }
+
+    if (source.includes("global.d.ts'") || source.includes('global.d.ts"')) {
+      source = source.replace(/import\s*['"][.\/]*global\.d\.ts['"];?\n?/g, '')
+      changed = true
+    }
+
+    if (changed) {
+      await writeFile(file, source, 'utf8')
+      transformed++
+    }
+  }
+  console.log(`OK Phase 2: transformed ${transformed} files`)
+
+  await writeFile(
+    ENTRY,
+    `#!/usr/bin/env node\nimport './src/entrypoints/cli.tsx'\n`,
+    'utf8',
+  )
+  await writeFile(
+    join(BUILD, 'tsconfig.json'),
+    JSON.stringify(
+      {
+        compilerOptions: {
+          baseUrl: '.',
+          paths: {
+            'src/*': ['src/*'],
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  )
+  console.log('OK Phase 3: created entry wrapper')
+}
+
+function runEsbuild() {
   try {
-    esbuildOutput = execSync([
-      'npx esbuild',
-      `"${ENTRY}"`,
+    execFileSync(process.execPath, [
+      ESBUILD_BIN,
+      ENTRY,
       '--bundle',
       '--platform=node',
       '--target=node18',
       '--format=esm',
-      `--outfile="${OUT_FILE}"`,
-      `--banner:js=$'#!/usr/bin/env node\\n// Claude Code v${VERSION} (built from source)\\n// Copyright (c) Anthropic PBC. All rights reserved.\\n'`,
-      '--packages=external',
+      `--outfile=${OUT_FILE}`,
+      `--tsconfig=${join(BUILD, 'tsconfig.json')}`,
+      '--banner:js=import { createRequire as __ccCreateRequire } from "node:module"; const require = __ccCreateRequire(import.meta.url);',
       '--external:bun:*',
+      '--loader:.md=text',
+      '--loader:.txt=text',
       '--allow-overwrite',
       '--log-level=error',
       '--log-limit=0',
       '--sourcemap',
-    ].join(' '), {
+    ], {
       cwd: ROOT,
       stdio: ['pipe', 'pipe', 'pipe'],
-      shell: true,
-    }).stderr?.toString() || ''
+    })
+    return { ok: true, output: '' }
+  } catch (error) {
+    const output =
+      (error.stderr?.toString() || '') +
+      (error.stdout?.toString() || '') +
+      (Array.isArray(error.output)
+        ? error.output.map(part => part?.toString?.() || '').join('')
+        : '') +
+      (error.message ? `\n${error.message}` : '')
+    return { ok: false, output }
+  }
+}
+
+await ensureEsbuild()
+await mkdir(OUT_DIR, { recursive: true })
+await prepareBuildSource()
+
+const maxRounds = 8
+let succeeded = false
+for (let round = 1; round <= maxRounds; round++) {
+  console.log(`\nPhase 4 round ${round}/${maxRounds}: bundling...`)
+  const result = runEsbuild()
+  if (result.ok) {
     succeeded = true
     break
-  } catch (e) {
-    esbuildOutput = (e.stderr?.toString() || '') + (e.stdout?.toString() || '')
   }
 
-  // Parse missing modules
-  const missingRe = /Could not resolve "([^"]+)"/g
-  const missing = new Set()
-  let m
-  while ((m = missingRe.exec(esbuildOutput)) !== null) {
-    const mod = m[1]
-    if (!mod.startsWith('node:') && !mod.startsWith('bun:') && !mod.startsWith('/')) {
-      missing.add(mod)
-    }
-  }
-
-  if (missing.size === 0) {
-    // No more missing modules but still errors — check what
-    const errLines = esbuildOutput.split('\n').filter(l => l.includes('ERROR')).slice(0, 5)
-    console.log('❌ Unrecoverable errors:')
-    errLines.forEach(l => console.log('   ' + l))
+  const missing = parseMissingModules(result.output)
+  const missingExports = parseMissingExports(result.output)
+  if (missing.length === 0 && missingExports.length === 0) {
+    console.log('Unrecoverable errors:')
+    result.output
+      .split('\n')
+      .filter(line => line.includes('ERROR') || line.trim())
+      .slice(0, 20)
+      .forEach(line => console.log(`  ${line}`))
     break
   }
 
-  console.log(`   Found ${missing.size} missing modules, creating stubs...`)
-
-  // Create stubs
-  let stubCount = 0
-  for (const mod of missing) {
-    // Resolve relative path from the file that imports it — but since we
-    // don't have that info easily, create stubs at multiple likely locations
-    const cleanMod = mod.replace(/^\.\//, '')
-
-    // Text assets → empty file
-    if (/\.(txt|md|json)$/.test(cleanMod)) {
-      const p = join(BUILD, 'src', cleanMod)
-      await mkdir(dirname(p), { recursive: true }).catch(() => {})
-      if (!await exists(p)) {
-        await writeFile(p, cleanMod.endsWith('.json') ? '{}' : '', 'utf8')
-        stubCount++
-      }
-      continue
-    }
-
-    // JS/TS modules → export empty
-    if (/\.[tj]sx?$/.test(cleanMod)) {
-      for (const base of [join(BUILD, 'src'), join(BUILD, 'src', 'src')]) {
-        const p = join(base, cleanMod)
-        await mkdir(dirname(p), { recursive: true }).catch(() => {})
-        if (!await exists(p)) {
-          const name = cleanMod.split('/').pop().replace(/\.[tj]sx?$/, '')
-          const safeName = name.replace(/[^a-zA-Z0-9_$]/g, '_') || 'stub'
-          await writeFile(p, `// Auto-generated stub\nexport default function ${safeName}() {}\nexport const ${safeName} = () => {}\n`, 'utf8')
-          stubCount++
-        }
-      }
-    }
+  const paths = new Set(missing.map(stubPathFor))
+  let created = 0
+  for (const path of paths) {
+    if (await createStub(path)) created++
   }
-  console.log(`   Created ${stubCount} stubs`)
+  let addedExports = 0
+  for (const item of missingExports) {
+    if (await addMissingExport(item.path, item.name)) addedExports++
+  }
+  console.log(
+    `  Found ${missing.length} missing modules, created ${created} stubs, added ${addedExports} exports`,
+  )
+  if (created === 0 && addedExports === 0) {
+    console.log('  No new stubs or exports were created; stopping to avoid a retry loop.')
+    break
+  }
 }
 
-if (succeeded) {
-  const size = (await stat(OUT_FILE)).size
-  console.log(`\n✅ Build succeeded: ${OUT_FILE}`)
-  console.log(`   Size: ${(size / 1024 / 1024).toFixed(1)}MB`)
-  console.log(`\n   Usage:  node ${OUT_FILE} --version`)
-  console.log(`           node ${OUT_FILE} -p "Hello"`)
-} else {
-  console.error('\n❌ Build failed after all rounds.')
-  console.error('   The transformed source is in build-src/ for inspection.')
-  console.error('\n   To fix manually:')
-  console.error('   1. Check build-src/ for the transformed files')
-  console.error('   2. Create missing stubs in build-src/src/')
-  console.error('   3. Re-run: node scripts/build.mjs')
+if (!succeeded) {
+  console.error('\nBuild failed. The transformed source is in build-src/.')
   process.exit(1)
 }
+
+const banner = `#!/usr/bin/env node\n// Claude Code v${VERSION} (built from source)\n// Copyright (c) Anthropic PBC. All rights reserved.\n`
+const output = await readFile(OUT_FILE, 'utf8')
+if (!output.startsWith('#!/usr/bin/env node')) {
+  await writeFile(OUT_FILE, banner + output, 'utf8')
+}
+
+const size = (await stat(OUT_FILE)).size
+console.log(`\nBuild succeeded: ${OUT_FILE}`)
+console.log(`Size: ${(size / 1024 / 1024).toFixed(1)}MB`)
+console.log(`Usage: node ${OUT_FILE} --version`)

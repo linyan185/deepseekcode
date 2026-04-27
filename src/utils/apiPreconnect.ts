@@ -20,7 +20,7 @@
  * Skipped when:
  * - proxy/mTLS/unix socket configured (preconnect would use wrong transport —
  *   the SDK passes a custom dispatcher/agent that doesn't share the global pool)
- * - Bedrock/Vertex/Foundry (different endpoints, different auth)
+ * - Bedrock/Vertex/Foundry/DeepSeek (different endpoints, different auth)
  */
 
 import { getOauthConfig } from '../constants/oauth.js'
@@ -36,7 +36,10 @@ export function preconnectAnthropicApi(): void {
   if (
     isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK) ||
     isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
+    isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY) ||
+    isEnvTruthy(process.env.CLAUDE_CODE_USE_DEEPSEEK) ||
+    !!process.env.DEEPSEEK_API_KEY ||
+    !!process.env.DEEPSEEK_BASE_URL
   ) {
     return
   }

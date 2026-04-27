@@ -6,6 +6,7 @@ import { errorMessage } from '../../utils/errors.js'
 import { getAuthHeaders, withOAuth401Retry } from '../../utils/http.js'
 import { logError } from '../../utils/log.js'
 import { memoizeWithTTLAsync } from '../../utils/memoize.js'
+import { getAPIProvider } from '../../utils/model/providers.js'
 import { isEssentialTrafficOnly } from '../../utils/privacyLevel.js'
 import { getClaudeCodeUserAgent } from '../../utils/userAgent.js'
 
@@ -54,7 +55,7 @@ async function _checkMetricsEnabledAPI(): Promise<MetricsStatus> {
   // Incident kill switch: skip the network call when nonessential traffic is disabled.
   // Returning enabled:false sheds load at the consumer (bigqueryExporter skips
   // export). Matches the non-subscriber early-return shape below.
-  if (isEssentialTrafficOnly()) {
+  if (isEssentialTrafficOnly() || getAPIProvider() === 'deepseek') {
     return { enabled: false, hasError: false }
   }
 

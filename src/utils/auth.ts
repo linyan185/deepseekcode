@@ -115,7 +115,8 @@ export function isAnthropicAuthEnabled(): boolean {
   const is3P =
     isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK) ||
     isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
+    isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY) ||
+    getAPIProvider() === 'deepseek'
 
   // Check if user has configured an external API key source
   // This allows externally-provided API keys to work (without requiring proxy configuration)
@@ -1594,7 +1595,8 @@ export function is1PApiCustomer(): boolean {
   if (
     isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK) ||
     isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
+    isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY) ||
+    getAPIProvider() === 'deepseek'
   ) {
     return false
   }
@@ -1728,12 +1730,13 @@ export function getSubscriptionName(): string {
   }
 }
 
-/** Check if using third-party services (Bedrock or Vertex or Foundry) */
+/** Check if using third-party services (Bedrock, Vertex, Foundry, or DeepSeek) */
 export function isUsing3PServices(): boolean {
   return !!(
     isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK) ||
     isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
+    isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY) ||
+    getAPIProvider() === 'deepseek'
   )
 }
 

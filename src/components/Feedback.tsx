@@ -20,6 +20,7 @@ import { env } from '../utils/env.js';
 import { type GitRepoState, getGitState, getIsGit } from '../utils/git.js';
 import { getAuthHeaders, getUserAgent } from '../utils/http.js';
 import { getInMemoryErrors, logError } from '../utils/log.js';
+import { getAPIProvider } from '../utils/model/providers.js';
 import { isEssentialTrafficOnly } from '../utils/privacyLevel.js';
 import { extractTeammateTranscriptsFromTasks, getTranscriptPath, loadAllSubagentTranscriptsFromDisk, MAX_TRANSCRIPT_READ_BYTES } from '../utils/sessionStorage.js';
 import { jsonStringify } from '../utils/slowOperations.js';
@@ -520,7 +521,7 @@ async function submitFeedback(data: FeedbackData, signal?: AbortSignal): Promise
   feedbackId?: string;
   isZdrOrg?: boolean;
 }> {
-  if (isEssentialTrafficOnly()) {
+  if (isEssentialTrafficOnly() || getAPIProvider() === 'deepseek') {
     return {
       success: false
     };

@@ -10,11 +10,17 @@ import { getWorkload } from '../utils/workloadContext.js'
 const DEFAULT_PREFIX = `You are Claude Code, Anthropic's official CLI for Claude.`
 const AGENT_SDK_CLAUDE_CODE_PRESET_PREFIX = `You are Claude Code, Anthropic's official CLI for Claude, running within the Claude Agent SDK.`
 const AGENT_SDK_PREFIX = `You are a Claude agent, built on Anthropic's Claude Agent SDK.`
+const DEEPSEEK_DEFAULT_PREFIX = `You are DeepSeek Code, a terminal coding agent using DeepSeek models through the configured DeepSeek API. Do not describe yourself as Claude, Claude Code, or hosted by Anthropic.`
+const DEEPSEEK_AGENT_PRESET_PREFIX = `You are DeepSeek Code, a terminal coding agent using DeepSeek models through the configured DeepSeek API. Do not describe yourself as Claude, Claude Code, or hosted by Anthropic.`
+const DEEPSEEK_AGENT_PREFIX = `You are a DeepSeek Code agent using DeepSeek models through the configured DeepSeek API. Do not describe yourself as Claude, Claude Code, or hosted by Anthropic.`
 
 const CLI_SYSPROMPT_PREFIX_VALUES = [
   DEFAULT_PREFIX,
   AGENT_SDK_CLAUDE_CODE_PRESET_PREFIX,
   AGENT_SDK_PREFIX,
+  DEEPSEEK_DEFAULT_PREFIX,
+  DEEPSEEK_AGENT_PRESET_PREFIX,
+  DEEPSEEK_AGENT_PREFIX,
 ] as const
 
 export type CLISyspromptPrefix = (typeof CLI_SYSPROMPT_PREFIX_VALUES)[number]
@@ -32,6 +38,16 @@ export function getCLISyspromptPrefix(options?: {
   hasAppendSystemPrompt: boolean
 }): CLISyspromptPrefix {
   const apiProvider = getAPIProvider()
+  if (apiProvider === 'deepseek') {
+    if (options?.isNonInteractive) {
+      if (options.hasAppendSystemPrompt) {
+        return DEEPSEEK_AGENT_PRESET_PREFIX
+      }
+      return DEEPSEEK_AGENT_PREFIX
+    }
+    return DEEPSEEK_DEFAULT_PREFIX
+  }
+
   if (apiProvider === 'vertex') {
     return DEFAULT_PREFIX
   }
@@ -71,6 +87,10 @@ function isAttributionHeaderEnabled(): boolean {
  * replacement avoids Content-Length changes and buffer reallocation.
  */
 export function getAttributionHeader(fingerprint: string): string {
+  if (getAPIProvider() === 'deepseek') {
+    return ''
+  }
+
   if (!isAttributionHeaderEnabled()) {
     return ''
   }

@@ -19,10 +19,12 @@ import { TASK_CREATE_TOOL_NAME } from '../tools/TaskCreateTool/constants.js'
 import type { Tools } from '../Tool.js'
 import type { Command } from '../types/command.js'
 import { BASH_TOOL_NAME } from '../tools/BashTool/toolName.js'
+import { WEB_FETCH_TOOL_NAME } from '../tools/WebFetchTool/prompt.js'
 import {
   getCanonicalName,
   getMarketingNameForModel,
 } from '../utils/model/model.js'
+import { getAPIProvider } from '../utils/model/providers.js'
 import { getSkillToolCommands } from 'src/commands.js'
 import { SKILL_TOOL_NAME } from '../tools/SkillTool/constants.js'
 import { getOutputStyleConfig } from './outputStyles.js'
@@ -124,6 +126,17 @@ const CLAUDE_4_5_OR_4_6_MODEL_IDS = {
   haiku: 'claude-haiku-4-5-20251001',
 }
 
+function isDeepSeekProvider(): boolean {
+  return getAPIProvider() === 'deepseek'
+}
+
+function getDefaultSystemIdentity(): string {
+  if (isDeepSeekProvider()) {
+    return `You are DeepSeek Code, a terminal coding agent using DeepSeek models through the configured DeepSeek API. Do not describe yourself as Claude, Claude Code, or hosted by Anthropic.`
+  }
+  return `You are Claude Code, Anthropic's official CLI for Claude.`
+}
+
 function getHooksSection(): string {
   return `Users may configure 'hooks', shell commands that execute in response to events like tool calls, in settings. Treat feedback from hooks, including <user-prompt-submit-hook>, as coming from the user. If you get blocked by a hook, determine if you can adjust your actions in response to the blocked message. If not, ask the user to check their hooks configuration.`
 }
@@ -213,8 +226,9 @@ function getSimpleDoingTasksSection(): string {
       : []),
   ]
 
+  const productName = isDeepSeekProvider() ? 'DeepSeek Code' : 'Claude Code'
   const userHelpSubitems = [
-    `/help: Get help with using Claude Code`,
+    `/help: Get help with using ${productName}`,
     `To give feedback, users should ${MACRO.ISSUES_EXPLAINER}`,
   ]
 
@@ -311,6 +325,56 @@ function getUsingYourToolsSection(enabledTools: Set<string>): string {
   ].filter(item => item !== null)
 
   return [`# Using your tools`, ...prependBullets(items)].join(`\n`)
+}
+
+function getDeepSeekCapabilityBoundariesSection(
+  enabledTools: Set<string>,
+): string | null {
+  if (!isDeepSeekProvider()) return null
+
+  const availableCoreTools = [
+    enabledTools.has(FILE_READ_TOOL_NAME)
+      ? 'read local text/code files, notebooks, Word .docx documents, and text-extractable PDFs'
+      : null,
+    enabledTools.has(FILE_WRITE_TOOL_NAME) ? 'create files' : null,
+    enabledTools.has(FILE_EDIT_TOOL_NAME) ? 'edit files' : null,
+    enabledTools.has(GLOB_TOOL_NAME) ? 'search file paths with Glob' : null,
+    enabledTools.has(GREP_TOOL_NAME) ? 'search file contents with Grep' : null,
+    enabledTools.has(BASH_TOOL_NAME)
+      ? 'run shell commands, including git commands and external CLI/API calls when local tools, network access, permissions, and credentials allow it'
+      : null,
+    enabledTools.has(WEB_FETCH_TOOL_NAME)
+      ? 'fetch public web pages with WebFetch, subject to network access and per-domain permission'
+      : null,
+    enabledTools.has(TASK_CREATE_TOOL_NAME) ||
+    enabledTools.has(TODO_WRITE_TOOL_NAME)
+      ? 'track tasks with the available task/todo tool'
+      : null,
+    enabledTools.has(SKILL_TOOL_NAME)
+      ? 'invoke configured skills that are actually available in this session'
+      : null,
+    enabledTools.has(AGENT_TOOL_NAME)
+      ? 'use configured subagents when the Agent tool is available'
+      : null,
+  ].filter(item => item !== null)
+
+  const items = [
+    `When the user asks what you can do, describe only capabilities that are actually available in this DeepSeek Code session. Do not produce a generic Claude Code feature list.`,
+    `Core capabilities currently available: ${availableCoreTools.length > 0 ? availableCoreTools.join('; ') : 'answering questions and using any tools explicitly listed in this session'}.`,
+    `DeepSeek Code uses DeepSeek V4 Pro with a 1M local context window for context accounting and auto-compact behavior. This is separate from model features such as vision, scanned-PDF understanding, or external service integrations.`,
+    `Do not claim native image, screenshot, scanned-PDF, or PDF visual understanding. The configured DeepSeek API path does not support image/document content blocks. You may read Word .docx and text-extractable PDF files only when local text extraction succeeds. If the user provides an image, screenshot, scanned PDF, or image-only PDF, explain that native visual understanding is unavailable and suggest OCR, manual transcription, or a separate vision-capable tool.`,
+    enabledTools.has(WEB_FETCH_TOOL_NAME)
+      ? `You may browse/fetch public web pages by using the ${WEB_FETCH_TOOL_NAME} tool when network access and domain permission allow it. This is page fetching, not Anthropic's server-side WebSearch, and it cannot access authenticated or private pages unless a suitable local/MCP credentialed tool is configured.`
+      : `Do not claim web browsing or web page fetching when the ${WEB_FETCH_TOOL_NAME} tool is not available in this session.`,
+    enabledTools.has(BASH_TOOL_NAME)
+      ? `You may access external APIs or services through local shell commands such as curl, npm, git, gh, or provider CLIs when network access, installed tools, user permission, and credentials allow it. Ask before risky actions or before sending sensitive data outside the workspace.`
+      : `Do not claim external API or service access through shell commands when the ${BASH_TOOL_NAME} tool is not available in this session.`,
+    `Do not claim persistent memory, background agents, subagents, Pull Request creation, WebSearch, or third-party service integrations as unconditional features. State the dependency on available tools, network access, installed CLIs, credentials, and user permission. GitHub Pull Request creation depends on local tools such as gh and user authentication.`,
+  ]
+
+  return [`# DeepSeek Code capability boundaries`, ...prependBullets(items)].join(
+    `\n`,
+  )
 }
 
 function getAgentToolSection(): string {
@@ -449,7 +513,7 @@ export async function getSystemPrompt(
 ): Promise<string[]> {
   if (isEnvTruthy(process.env.CLAUDE_CODE_SIMPLE)) {
     return [
-      `You are Claude Code, Anthropic's official CLI for Claude.\n\nCWD: ${getCwd()}\nDate: ${getSessionStartDate()}`,
+      `${getDefaultSystemIdentity()}\n\nCWD: ${getCwd()}\nDate: ${getSessionStartDate()}`,
     ]
   }
 
@@ -567,6 +631,7 @@ ${CYBER_RISK_INSTRUCTION}`,
       : null,
     getActionsSection(),
     getUsingYourToolsSection(enabledTools),
+    getDeepSeekCapabilityBoundariesSection(enabledTools),
     getSimpleToneAndStyleSection(),
     getOutputEfficiencySection(),
     // === BOUNDARY MARKER - DO NOT MOVE OR REMOVE ===
@@ -673,6 +738,7 @@ export async function computeSimpleEnvInfo(
 
   const cwd = getCwd()
   const isWorktree = getCurrentWorktreeSession() !== null
+  const isDeepSeek = isDeepSeekProvider()
 
   const envItems = [
     `Primary working directory: ${cwd}`,
@@ -691,13 +757,19 @@ export async function computeSimpleEnvInfo(
     `OS Version: ${unameSR}`,
     modelDescription,
     knowledgeCutoffMessage,
-    process.env.USER_TYPE === 'ant' && isUndercover()
+    isDeepSeek
+      ? `The active product is DeepSeek Code, a local CLI using the configured DeepSeek API. Do not describe yourself as Claude, Claude Code, or hosted by Anthropic.`
+      : process.env.USER_TYPE === 'ant' && isUndercover()
       ? null
       : `The most recent Claude model family is Claude 4.5/4.6. Model IDs — Opus 4.6: '${CLAUDE_4_5_OR_4_6_MODEL_IDS.opus}', Sonnet 4.6: '${CLAUDE_4_5_OR_4_6_MODEL_IDS.sonnet}', Haiku 4.5: '${CLAUDE_4_5_OR_4_6_MODEL_IDS.haiku}'. When building AI applications, default to the latest and most capable Claude models.`,
-    process.env.USER_TYPE === 'ant' && isUndercover()
+    isDeepSeek
+      ? `DeepSeek Code is available as this local terminal application.`
+      : process.env.USER_TYPE === 'ant' && isUndercover()
       ? null
       : `Claude Code is available as a CLI in the terminal, desktop app (Mac/Windows), web app (claude.ai/code), and IDE extensions (VS Code, JetBrains).`,
-    process.env.USER_TYPE === 'ant' && isUndercover()
+    isDeepSeek
+      ? null
+      : process.env.USER_TYPE === 'ant' && isUndercover()
       ? null
       : `Fast mode for Claude Code uses the same ${FRONTIER_MODEL_NAME} model with faster output. It does NOT switch to a different model. It can be toggled with /fast.`,
   ].filter(item => item !== null)
@@ -755,7 +827,9 @@ export function getUnameSR(): string {
   return `${osType()} ${osRelease()}`
 }
 
-export const DEFAULT_AGENT_PROMPT = `You are an agent for Claude Code, Anthropic's official CLI for Claude. Given the user's message, you should use the tools available to complete the task. Complete the task fully—don't gold-plate, but don't leave it half-done. When you complete the task, respond with a concise report covering what was done and any key findings — the caller will relay this to the user, so it only needs the essentials.`
+export const DEFAULT_AGENT_PROMPT = isDeepSeekProvider()
+  ? `You are an agent for DeepSeek Code, a terminal coding agent using DeepSeek models through the configured DeepSeek API. Do not describe yourself as Claude, Claude Code, or hosted by Anthropic. Given the user's message, you should use the tools available to complete the task. Complete the task fully—don't gold-plate, but don't leave it half-done. When you complete the task, respond with a concise report covering what was done and any key findings — the caller will relay this to the user, so it only needs the essentials.`
+  : `You are an agent for Claude Code, Anthropic's official CLI for Claude. Given the user's message, you should use the tools available to complete the task. Complete the task fully—don't gold-plate, but don't leave it half-done. When you complete the task, respond with a concise report covering what was done and any key findings — the caller will relay this to the user, so it only needs the essentials.`
 
 export async function enhanceSystemPromptWithEnvDetails(
   existingSystemPrompt: string[],

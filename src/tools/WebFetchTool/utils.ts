@@ -8,6 +8,7 @@ import { queryHaiku } from '../../services/api/claude.js'
 import { AbortError } from '../../utils/errors.js'
 import { getWebFetchUserAgent } from '../../utils/http.js'
 import { logError } from '../../utils/log.js'
+import { getAPIProvider } from '../../utils/model/providers.js'
 import {
   isBinaryContentType,
   persistBinaryContent,
@@ -20,7 +21,7 @@ import { makeSecondaryModelPrompt } from './prompt.js'
 // Custom error classes for domain blocking
 class DomainBlockedError extends Error {
   constructor(domain: string) {
-    super(`Claude Code is unable to fetch from ${domain}`)
+    super(`DeepSeek Code is unable to fetch from ${domain}`)
     this.name = 'DomainBlockedError'
   }
 }
@@ -28,7 +29,7 @@ class DomainBlockedError extends Error {
 class DomainCheckFailedError extends Error {
   constructor(domain: string) {
     super(
-      `Unable to verify if domain ${domain} is safe to fetch. This may be due to network restrictions or enterprise security policies blocking claude.ai.`,
+      `Unable to verify if domain ${domain} is safe to fetch.`,
     )
     this.name = 'DomainCheckFailedError'
   }
@@ -176,6 +177,11 @@ type DomainCheckResult =
 export async function checkDomainBlocklist(
   domain: string,
 ): Promise<DomainCheckResult> {
+  if (getAPIProvider() === 'deepseek') {
+    DOMAIN_CHECK_CACHE.set(domain, true)
+    return { status: 'allowed' }
+  }
+
   if (DOMAIN_CHECK_CACHE.has(domain)) {
     return { status: 'allowed' }
   }

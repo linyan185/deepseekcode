@@ -14,8 +14,9 @@
     "sourceMap": true,
     "jsx": "react-jsx",
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDir": ".",
     "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
     "paths": {
       "bun:bundle": ["stubs/bun-bundle.ts"],
       "src/*": ["src/*"]

@@ -35,6 +35,11 @@ import {
  * Direct API:
  * - ANTHROPIC_API_KEY: Required for direct API access
  *
+ * DeepSeek Anthropic-compatible API:
+ * - CLAUDE_CODE_USE_DEEPSEEK=1: Explicitly select DeepSeek
+ * - DEEPSEEK_API_KEY: Required DeepSeek API key
+ * - DEEPSEEK_BASE_URL: Optional, defaults to https://api.deepseek.com/anthropic
+ *
  * AWS Bedrock:
  * - AWS credentials configured via aws-sdk defaults
  * - AWS_REGION or AWS_DEFAULT_REGION: Sets the AWS region for all models (default: us-east-1)
@@ -101,19 +106,28 @@ export async function getAnthropicClient({
   const containerId = process.env.CLAUDE_CODE_CONTAINER_ID
   const remoteSessionId = process.env.CLAUDE_CODE_REMOTE_SESSION_ID
   const clientApp = process.env.CLAUDE_AGENT_SDK_CLIENT_APP
-  const customHeaders = getCustomHeaders()
-  const defaultHeaders: { [key: string]: string } = {
-    'x-app': 'cli',
-    'User-Agent': getUserAgent(),
-    'X-Claude-Code-Session-Id': getSessionId(),
-    ...customHeaders,
-    ...(containerId ? { 'x-claude-remote-container-id': containerId } : {}),
-    ...(remoteSessionId
-      ? { 'x-claude-remote-session-id': remoteSessionId }
-      : {}),
-    // SDK consumers can identify their app/library for backend analytics
-    ...(clientApp ? { 'x-client-app': clientApp } : {}),
-  }
+  const apiProvider = getAPIProvider()
+  const customHeaders = apiProvider === 'deepseek' ? {} : getCustomHeaders()
+  const defaultHeaders: { [key: string]: string } =
+    apiProvider === 'deepseek'
+      ? {
+          'x-app': 'deepseek-code',
+          'User-Agent': `deepseek-code/${MACRO.VERSION}`,
+        }
+      : {
+          'x-app': 'cli',
+          'User-Agent': getUserAgent(),
+          'X-Claude-Code-Session-Id': getSessionId(),
+          ...customHeaders,
+          ...(containerId
+            ? { 'x-claude-remote-container-id': containerId }
+            : {}),
+          ...(remoteSessionId
+            ? { 'x-claude-remote-session-id': remoteSessionId }
+            : {}),
+          // SDK consumers can identify their app/library for backend analytics
+          ...(clientApp ? { 'x-client-app': clientApp } : {}),
+        }
 
   // Log API client configuration for HFI debugging
   logForDebugging(
@@ -128,28 +142,62 @@ export async function getAnthropicClient({
     defaultHeaders['x-anthropic-additional-protection'] = 'true'
   }
 
-  logForDebugging('[API:auth] OAuth token check starting')
-  await checkAndRefreshOAuthTokenIfNeeded()
-  logForDebugging('[API:auth] OAuth token check complete')
+  if (apiProvider !== 'deepseek') {
+    logForDebugging('[API:auth] OAuth token check starting')
+    await checkAndRefreshOAuthTokenIfNeeded()
+    logForDebugging('[API:auth] OAuth token check complete')
 
-  if (!isClaudeAISubscriber()) {
-    await configureApiKeyHeaders(defaultHeaders, getIsNonInteractiveSession())
+    if (!isClaudeAISubscriber()) {
+      await configureApiKeyHeaders(defaultHeaders, getIsNonInteractiveSession())
+    }
   }
 
   const resolvedFetch = buildFetch(fetchOverride, source)
+
+  const providerFetchOptions =
+    apiProvider === 'deepseek'
+      ? undefined
+      : (getProxyFetchOptions({
+          forAnthropicAPI: true,
+        }) as ClientOptions['fetchOptions'])
 
   const ARGS = {
     defaultHeaders,
     maxRetries,
     timeout: parseInt(process.env.API_TIMEOUT_MS || String(600 * 1000), 10),
     dangerouslyAllowBrowser: true,
-    fetchOptions: getProxyFetchOptions({
-      forAnthropicAPI: true,
-    }) as ClientOptions['fetchOptions'],
+    ...(providerFetchOptions && { fetchOptions: providerFetchOptions }),
     ...(resolvedFetch && {
       fetch: resolvedFetch,
     }),
   }
+  if (apiProvider === 'deepseek') {
+    const deepseekApiKey = apiKey || process.env.DEEPSEEK_API_KEY
+    if (!deepseekApiKey) {
+      throw new Error(
+        'DEEPSEEK_API_KEY is required when DeepSeek mode is enabled.',
+      )
+    }
+    const legacyDeepSeekBaseURL = process.env.ANTHROPIC_BASE_URL?.includes(
+      'deepseek.com',
+    )
+      ? process.env.ANTHROPIC_BASE_URL
+      : undefined
+    const deepseekBaseURL =
+      process.env.DEEPSEEK_BASE_URL ||
+      legacyDeepSeekBaseURL ||
+      'https://api.deepseek.com/anthropic'
+
+    const deepseekArgs: ConstructorParameters<typeof Anthropic>[0] = {
+      apiKey: deepseekApiKey,
+      baseURL: deepseekBaseURL,
+      ...ARGS,
+      ...(isDebugToStdErr() && { logger: createStderrLogger() }),
+    }
+
+    return new Anthropic(deepseekArgs)
+  }
+
   if (isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK)) {
     const { AnthropicBedrock } = await import('@anthropic-ai/bedrock-sdk')
     // Use region override for small fast model if specified
