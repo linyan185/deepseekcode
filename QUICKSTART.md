@@ -3,7 +3,7 @@
 ## 1. Install
 
 ```powershell
-git clone <repo-url> deepseekcode
+git clone https://github.com/linyan185/deepseekcode.git deepseekcode
 cd deepseekcode
 npm ci --ignore-scripts
 npm run check

@@ -23,7 +23,7 @@ It keeps the familiar terminal agent workflow: project-aware chat, tool executio
 ## Install From Source
 
 ```powershell
-git clone <repo-url> deepseekcode
+git clone https://github.com/linyan185/deepseekcode.git deepseekcode
 cd deepseekcode
 npm ci --ignore-scripts
 npm run check

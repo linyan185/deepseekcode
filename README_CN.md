@@ -23,7 +23,7 @@ DeepSeekCode 是一个本地命令行编程代理。它基于 Claude Code 代码
 ## 从源码安装
 
 ```powershell
-git clone <repo-url> deepseekcode
+git clone https://github.com/linyan185/deepseekcode.git deepseekcode
 cd deepseekcode
 npm ci --ignore-scripts
 npm run check
