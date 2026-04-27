@@ -1,5 +1,7 @@
 # DeepSeekCode
 
+[English](README.md) | [简体中文](README_CN.md)
+
 DeepSeekCode 是一个本地命令行编程代理。它基于 Claude Code 代码库改造，让模型请求走 DeepSeek 的 Anthropic-compatible API。
 
 它保留了终端代理常用体验：项目内对话、工具执行、权限确认、MCP、子代理、文件编辑、以及 `-p` 非交互模式。这个 fork 主要做了 DeepSeek provider 适配、本地配置目录隔离、禁用当前不兼容的 thinking 链路，并在请求前清理 DeepSeek 兼容接口不支持的内容块。

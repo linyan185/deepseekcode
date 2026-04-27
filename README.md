@@ -1,5 +1,7 @@
 # DeepSeekCode
 
+[English](README.md) | [简体中文](README_CN.md)
+
 DeepSeekCode is a local CLI coding agent adapted from the Claude Code codebase to run against DeepSeek's Anthropic-compatible API.
 
 It keeps the familiar terminal agent workflow: project-aware chat, tool execution, permission prompts, MCP support, sub-agents, file editing, and non-interactive `-p` mode. The adapter routes model calls to DeepSeek, isolates local config under `.deepseek-code`, disables unsupported thinking mode, and sanitizes content blocks that the current DeepSeek-compatible endpoint does not accept.
